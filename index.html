@@ -497,6 +497,118 @@ footer.site-footer{text-align:center;padding:26px;color:var(--text-faint);font-s
   .instructions-body,.instructions-head,.instructions-actions{padding-left:20px;padding-right:20px;}
   .info-grid{grid-template-columns:1fr 1fr 1fr;}
 }
+
+/* ============================================================
+   AI BANNER PILL (CINEMATIC & PROFESSIONAL)
+   ============================================================ */
+.ai-banner-wrap{
+  display:flex;
+  justify-content:center;
+  margin-top:12px;
+  margin-bottom:18px;
+}
+.ai-banner-pill{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  max-width:480px;
+  width:92%;
+  padding:1.8px;
+  border-radius:100px;
+  box-shadow:0 6px 20px rgba(124,58,237,0.2), 0 0 12px rgba(14,165,160,0.18);
+  overflow:hidden;
+  transition:transform 0.25s ease, box-shadow 0.25s ease;
+  cursor:pointer;
+}
+.ai-banner-pill:hover{
+  transform:translateY(-2px);
+  box-shadow:0 10px 28px rgba(124,58,237,0.32), 0 0 18px rgba(14,165,160,0.28);
+}
+.ai-banner-pill::before{
+  content:'';
+  position:absolute;
+  top:-50%;
+  left:-50%;
+  width:200%;
+  height:200%;
+  background:conic-gradient(
+    transparent,
+    rgba(124,58,237,0.5),
+    #7C3AED,
+    #0EA5A0,
+    #3F3BE0,
+    rgba(124,58,237,0.5),
+    transparent 65%
+  );
+  animation:rotateBorder 2.8s linear infinite;
+  z-index:1;
+}
+.ai-pill-inner{
+  position:relative;
+  z-index:2;
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:5px 14px;
+  background:linear-gradient(135deg, #111528 0%, #1A1F38 100%);
+  border-radius:100px;
+  color:#FFFFFF;
+  overflow:hidden;
+}
+.ai-pulse-dot{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:#0EA5A0;
+  box-shadow:0 0 8px #0EA5A0;
+  flex-shrink:0;
+  animation:pulseDot 1.4s infinite ease-in-out;
+}
+@keyframes pulseDot{
+  0%,100%{transform:scale(1);opacity:1;}
+  50%{transform:scale(1.35);opacity:0.5;}
+}
+.ai-pill-tag{
+  font-family:var(--font-display);
+  font-size:0.72rem;
+  font-weight:800;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  background:linear-gradient(135deg, #A855F7, #0EA5A0);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.ai-marquee-box{
+  flex:1;
+  overflow:hidden;
+  white-space:nowrap;
+  position:relative;
+  mask-image:linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  -webkit-mask-image:linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+.ai-marquee-track{
+  display:inline-flex;
+  gap:24px;
+  animation:marqueeScroll 16s linear infinite;
+  font-size:0.85rem;
+  font-weight:600;
+  color:#E2E8F0;
+  letter-spacing:0.02em;
+}
+.ai-marquee-track span{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+@keyframes marqueeScroll{
+  0%{transform:translateX(0);}
+  100%{transform:translateX(-50%);}
+}
 </style>
 </head>
 <body>
@@ -537,6 +649,20 @@ footer.site-footer{text-align:center;padding:26px;color:var(--text-faint);font-s
     <div class="container">
       <div class="hero">
         <span class="eyebrow">Free Practice Platform</span>
+        <div class="ai-banner-wrap">
+          <div class="ai-banner-pill" title="Upcoming Feature: AI Assistant & Interview">
+            <div class="ai-pill-inner">
+              <div class="ai-pulse-dot"></div>
+              <div class="ai-pill-tag">✨ AI NEXT-GEN</div>
+              <div class="ai-marquee-box">
+                <div class="ai-marquee-track">
+                  <span>🤖 AI Interview & AI Assistant Coming Soon.............. 🚀 Real-Time Viva & Feedback.............. 💡 Instant Doubt Solving.............. </span>
+                  <span>🤖 AI Interview & AI Assistant Coming Soon.............. 🚀 Real-Time Viva & Feedback.............. 💡 Instant Doubt Solving.............. </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <h1>Sharpen your skills with <span class="accent-word">TechMach</span> Mock Test</h1>
         <p class="lead">Practice. Test Your Knowledge. Improve Your Score. Timed, exam-style mock tests covering core Computer Science topics and teaching aptitude.</p>
 
@@ -555,8 +681,8 @@ footer.site-footer{text-align:center;padding:26px;color:var(--text-faint);font-s
       
       <div class="filter-tabs" id="filterTabs">
         <button class="filter-btn active" data-filter="all">All Mock Tests</button>
-        <button class="filter-btn" data-filter="stet">🎯 STET 2025 Full & Paper Parts</button>
         <button class="filter-btn" data-filter="stet_history">📜 STET 2025 Paper II: History (इतिहास)</button>
+        <button class="filter-btn" data-filter="stet">🎯 STET 2025 CS & Paper Parts</button>
         <button class="filter-btn" data-filter="stet_subject">📖 STET 2025 Subject Tests</button>
         <button class="filter-btn" data-filter="topic">📚 Topic Wise Tests</button>
       </div>
@@ -1042,19 +1168,19 @@ const ICONS = {
 };
 
 const CATEGORIES = [
-  // STET 2025 Full & Main Parts (Previous CS Test - untouched)
-  {key:'stet_full',  name:'STET 2025 Full Mock Test (Paper II)', duration:150, difficulty:'Hard', group:'stet', badge:'FULL MOCK 2025'},
-  {key:'stet_part1', name:'STET 2025 Part I: Computer Science', duration:100, difficulty:'Hard', group:'stet', badge:'PART I'},
-  {key:'stet_part2', name:'STET 2025 Part II: Art of Teaching', duration:30,  difficulty:'Moderate', group:'stet', badge:'PART II'},
-  {key:'stet_part3', name:'STET 2025 Part III: General Knowledge & Aptitude', duration:20, difficulty:'Moderate', group:'stet', badge:'PART III'},
-
-  // NEW SECTION: STET 2025 History Paper II
+  // STET 2025 History Paper II (group: 'stet_history')
   {key:'stet_history_full', name:'STET 2025: इतिहास (Full Mock Test - 150 Q)', duration:150, difficulty:'Hard', group:'stet_history', badge:'FULL MOCK (HINDI)'},
   {key:'stet_history_part1', name:'STET 2025: इतिहास - Part I (100 प्रश्न)', duration:100, difficulty:'Hard', group:'stet_history', badge:'इतिहास (PART I)'},
   {key:'stet_history_part2', name:'STET 2025: शिक्षण कला - Part II (30 प्रश्न)', duration:30,  difficulty:'Moderate', group:'stet_history', badge:'शिक्षण कला (PART II)'},
   {key:'stet_history_part3', name:'STET 2025: सामान्य ज्ञान एवं योग्यता - Part III (20 प्रश्न)', duration:20, difficulty:'Moderate', group:'stet_history', badge:'सामान्य ज्ञान (PART III)'},
 
-  // STET 2025 Subject-Wise Tests (Untouched)
+  // STET 2025 Computer Science Paper II (group: 'stet')
+  {key:'stet_full',  name:'STET 2025 Full Mock Test (Paper II)', duration:150, difficulty:'Hard', group:'stet', badge:'FULL MOCK 2025'},
+  {key:'stet_part1', name:'STET 2025 Part I: Computer Science', duration:100, difficulty:'Hard', group:'stet', badge:'PART I'},
+  {key:'stet_part2', name:'STET 2025 Part II: Art of Teaching', duration:30,  difficulty:'Moderate', group:'stet', badge:'PART II'},
+  {key:'stet_part3', name:'STET 2025 Part III: General Knowledge & Aptitude', duration:20, difficulty:'Moderate', group:'stet', badge:'PART III'},
+
+  // STET 2025 Subject-Wise Tests (group: 'stet_subject')
   {key:'stet_net',   name:'Computer Networks & Security', duration:25, difficulty:'Moderate', group:'stet_subject', badge:'NETWORKING'},
   {key:'stet_dbms',  name:'Database Management & SQL', duration:15, difficulty:'Moderate', group:'stet_subject', badge:'DBMS & SQL'},
   {key:'stet_prog',  name:'Programming & OOP (Python/Java/JS)', duration:12, difficulty:'Moderate', group:'stet_subject', badge:'PROGRAMMING'},
@@ -1064,7 +1190,7 @@ const CATEGORIES = [
   {key:'stet_os_se', name:'Fundamentals, OS & Software Eng.', duration:20, difficulty:'Moderate', group:'stet_subject', badge:'OS & SE'},
   {key:'stet_toc',   name:'Theory of Computation & Automata', duration:8, difficulty:'Hard', group:'stet_subject', badge:'AUTOMATA'},
 
-  // Topic Wise Practice Tests (Untouched)
+  // Topic Wise Practice Tests (group: 'topic')
   {key:'cf',    name:'Computer Fundamentals', duration:30, difficulty:'Moderate', group:'topic'},
   {key:'net',   name:'Networking',            duration:30, difficulty:'Moderate', group:'topic'},
   {key:'dbms',  name:'DBMS',                  duration:30, difficulty:'Moderate', group:'topic'},
