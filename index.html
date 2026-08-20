@@ -205,8 +205,8 @@ a{color:var(--primary);}
 /* ============================================================
    SCREENS
    ============================================================ */
-.screen{display:none;flex:1;animation:fadeIn .28s ease;}
-.screen.active{display:block;width:100%;}
+.screen{display:none;flex:1 0 auto;animation:fadeIn .28s ease;}
+.screen.active{display:block;flex:1 0 auto;width:100%;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 @media (prefers-reduced-motion: reduce){
   .screen{animation:none;}
@@ -604,9 +604,86 @@ a{color:var(--primary);}
 .review-opt.is-correct{background:var(--success-bg);border-color:transparent;color:#14532D;}
 .review-opt.is-wrong{background:var(--danger-bg);border-color:transparent;color:#7F1D1D;}
 .review-explain{margin-top:12px;background:var(--surface-alt);border-radius:10px;padding:12px 14px;font-size:0.85rem;color:var(--text-muted);}
-.review-explain strong{color:var(--text);}
+/* ============ FOOTER ANNOUNCEMENT MARQUEE ============ */
+.footer-marquee-bar {
+  width: 100%;
+  height: 50px;
+  background: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%);
+  border-top: 1px solid rgba(124, 58, 237, 0.4);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.4);
+  box-shadow: 0 -4px 20px rgba(124, 58, 237, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  z-index: 10;
+  flex-shrink: 0;
+}
 
-footer.site-footer{text-align:center;padding:26px;color:var(--text-faint);font-size:0.8rem;}
+.footer-marquee-bar:hover .footer-marquee-track {
+  animation-play-state: paused;
+}
+
+.footer-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marqueeContinuous 24s linear infinite;
+}
+
+.footer-marquee-content {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.footer-marquee-content span {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #F3F4F6;
+  padding: 0 28px;
+  letter-spacing: 0.02em;
+}
+
+.footer-marquee-content .highlight-accent {
+  color: #C084FC;
+  background: linear-gradient(135deg, #F43F5E, #A855F7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  padding: 0 4px;
+}
+
+.footer-marquee-content .highlight-yellow {
+  color: #FEF08A;
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(254, 240, 138, 0.4);
+  padding: 0 4px;
+}
+
+@keyframes marqueeContinuous {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+footer.site-footer, .site-footer{
+  display:block;
+  margin-top:auto;
+  width:100%;
+  flex-shrink:0;
+  position:relative;
+  z-index:10;
+  text-align:center;
+  padding:26px;
+  color:var(--text-faint);
+  font-size:0.8rem;
+}
 
 /* ---------- RESPONSIVE ---------- */
 @media (max-width:920px){
@@ -1232,6 +1309,20 @@ footer.site-footer{text-align:center;padding:26px;color:var(--text-faint);font-s
       <div id="reviewList"><!-- populated by JS --></div>
     </div>
   </section>
+
+  <!-- ============ FOOTER ANNOUNCEMENT MARQUEE ============ -->
+  <div class="footer-marquee-bar" title="Upcoming Exams & Mock Tests Announcement">
+    <div class="footer-marquee-track">
+      <div class="footer-marquee-content">
+        <span>📚 More Mock Tests & New Exams <strong class="highlight-accent">Coming Soon...!</strong> 🚀 &nbsp;|&nbsp; <strong class="highlight-yellow">Everything in One Place</strong> &nbsp;|&nbsp; Stay Tuned 🚀</span>
+        <span>📚 More Mock Tests & New Exams <strong class="highlight-accent">Coming Soon...!</strong> 🚀 &nbsp;|&nbsp; <strong class="highlight-yellow">Everything in One Place</strong> &nbsp;|&nbsp; Stay Tuned 🚀</span>
+      </div>
+      <div class="footer-marquee-content" aria-hidden="true">
+        <span>📚 More Mock Tests & New Exams <strong class="highlight-accent">Coming Soon...!</strong> 🚀 &nbsp;|&nbsp; <strong class="highlight-yellow">Everything in One Place</strong> &nbsp;|&nbsp; Stay Tuned 🚀</span>
+        <span>📚 More Mock Tests & New Exams <strong class="highlight-accent">Coming Soon...!</strong> 🚀 &nbsp;|&nbsp; <strong class="highlight-yellow">Everything in One Place</strong> &nbsp;|&nbsp; Stay Tuned 🚀</span>
+      </div>
+    </div>
+  </div>
 
   <footer class="site-footer">TechMach Mock Test &mdash; built for practice, not affiliated with any exam board.</footer>
 </div>
