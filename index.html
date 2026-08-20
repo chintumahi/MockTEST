@@ -13453,6 +13453,19 @@ async function apiRecordAttempt(attemptData) {
   } catch (err) {}
 }
 
+async function apiVerifyAdminPasscode(passcode) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/verify-passcode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, message: 'Network error verifying admin key.' };
+  }
+}
+
 // Resend Timer Countdown Helper
 function startResendTimer(btnElement, textBadgeElement, seconds = 45) {
   let remaining = seconds;
@@ -13694,7 +13707,6 @@ function closeRegisterModal(){
 // Admin Dashboard Modal & Security Control
 
 let isAdminAuthenticated = false;
-const ADMIN_MASTER_KEYS = ['priy123'];
 
 function openAdminDashboardModal(){
   const currentUser = getCurrentUser();
@@ -13865,18 +13877,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const adminPasscodeForm = document.getElementById('adminPasscodeForm');
   if (adminPasscodeForm) {
-    adminPasscodeForm.addEventListener('submit', (e) => {
+    adminPasscodeForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const inputKey = document.getElementById('adminKeyInput').value.trim();
+      const unlockBtn = adminPasscodeForm.querySelector('button[type="submit"]');
 
-      if (ADMIN_MASTER_KEYS.includes(inputKey)) {
-        isAdminAuthenticated = true;
-        closeAdminPasscodeModal();
-        renderAdminDashboard();
-        document.getElementById('adminDashboardModal').classList.add('active');
-        showToast('Admin Access Granted!', 'success');
-      } else {
-        showToast('Access Denied! Incorrect Admin Security Key.', 'danger');
+      if (!inputKey) {
+        showToast('Please enter the Admin Security Key.', 'warn');
+        return;
+      }
+
+      try {
+        if (unlockBtn) {
+          unlockBtn.disabled = true;
+          unlockBtn.textContent = 'Verifying...';
+        }
+
+        const res = await apiVerifyAdminPasscode(inputKey);
+
+        if (res.success) {
+          isAdminAuthenticated = true;
+          closeAdminPasscodeModal();
+          await renderAdminDashboard();
+          document.getElementById('adminDashboardModal').classList.add('active');
+          showToast(res.message || 'Admin Access Granted!', 'success');
+        } else {
+          showToast(res.message || 'Invalid Admin Security Key.', 'danger');
+        }
+      } catch (err) {
+        showToast('Verification failed. Please check network connection.', 'danger');
+      } finally {
+        if (unlockBtn) {
+          unlockBtn.disabled = false;
+          unlockBtn.innerHTML = '🔓 Unlock Admin Panel';
+        }
       }
     });
   }
@@ -13900,6 +13934,22 @@ document.addEventListener('DOMContentLoaded', () => {
   if (closeForg) closeForg.addEventListener('click', () => {
     document.getElementById('forgotPasswordModal').classList.remove('active');
   });
+
+  const adminBackHome = document.getElementById('adminBackToHomeBtn');
+  if (adminBackHome) {
+    adminBackHome.addEventListener('click', () => {
+      closeAdminDashboardModal();
+      showScreen('screen-home');
+    });
+  }
+
+  const userHistBack = document.getElementById('userHistBackToAdminBtn');
+  if (userHistBack) {
+    userHistBack.addEventListener('click', () => {
+      closeUserHistoryModal();
+      document.getElementById('adminDashboardModal').classList.add('active');
+    });
+  }
 
   // Clicking outside modal content box closes active modal
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
@@ -14224,7 +14274,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Admin Dashboard Server Data Sync
+  // 5. Admin Dashboard Server Data Sync & Live Search
   async function renderAdminDashboardWithServer(filterQuery = '') {
     const serverData = await apiFetchAdminData();
     const users = serverData.users || getRegisteredUsers();
@@ -14240,35 +14290,38 @@ document.addEventListener('DOMContentLoaded', () => {
     tbody.innerHTML = '';
 
     const query = filterQuery.toLowerCase().trim();
-    const filteredUsers = users.filter(u => 
-      u.name.toLowerCase().includes(query) || 
-      u.username.toLowerCase().includes(query) || 
-      u.mobile.includes(query)
-    );
+    const filteredUsers = users.filter(u => {
+      const nameMatch = u.name && u.name.toLowerCase().includes(query);
+      const unameMatch = u.username && u.username.toLowerCase().includes(query);
+      const emailMatch = u.email && u.email.toLowerCase().includes(query);
+      const mobileMatch = u.mobile && String(u.mobile).includes(query);
+      return nameMatch || unameMatch || emailMatch || mobileMatch;
+    });
 
     if (filteredUsers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No registered users found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No registered users found matching query.</td></tr>';
       return;
     }
 
     filteredUsers.forEach(u => {
       const userAttempts = attempts.filter(a => a.userId === u.id || a.username === u.username);
       const count = userAttempts.length;
-      const best = count > 0 ? Math.max(...userAttempts.map(a => a.percentage)) : 0;
-      const avg = count > 0 ? Math.round(userAttempts.reduce((sum, a) => sum + a.percentage, 0) / count) : 0;
+      const best = count > 0 ? Math.max(...userAttempts.map(a => a.percentage || 0)) : 0;
+      const avg = count > 0 ? Math.round(userAttempts.reduce((sum, a) => sum + (a.percentage || 0), 0) / count) : 0;
+      const contactDisplay = u.email || u.mobile || 'N/A';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>
-          <strong style="color:var(--text);display:block;">${u.name}</strong>
-          <small style="color:var(--text-muted);font-family:var(--font-mono);">ID: ${u.username}</small>
+          <strong style="color:var(--text);display:block;">${u.name || 'User'}</strong>
+          <small style="color:var(--text-muted);font-family:var(--font-mono);">ID: ${u.username || u.id}</small>
         </td>
-        <td>${u.mobile}</td>
+        <td><span style="font-size:0.84rem;color:var(--text-muted);">${contactDisplay}</span></td>
         <td><span style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">${count} Test${count !== 1 ? 's' : ''}</span></td>
         <td><strong style="color:var(--success);font-family:var(--font-mono);">${best}%</strong></td>
         <td><span style="font-family:var(--font-mono);">${avg}%</span></td>
         <td>
-          <button class="btn btn-secondary btn-sm view-user-hist-btn" data-uid="${u.id}" data-uname="${u.name}">
+          <button class="btn btn-secondary btn-sm view-user-hist-btn" data-uid="${u.id}" data-uname="${u.name || u.username}">
             📊 Final Scores & History
           </button>
         </td>
@@ -14287,6 +14340,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Override renderAdminDashboard to pull server data
   window.renderAdminDashboard = renderAdminDashboardWithServer;
+
+  // Real-time Admin Search Input Wiring
+  const adminSearchInput = document.getElementById('adminSearchInput');
+  if (adminSearchInput) {
+    adminSearchInput.addEventListener('input', (e) => {
+      renderAdminDashboardWithServer(e.target.value);
+    });
+  }
 
 
   // 7. Core Home & Test Grid Rendering
@@ -14571,14 +14632,16 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- ============ ADMIN / ALL USERS DASHBOARD MODAL ============ -->
 <div class="modal-overlay" id="adminDashboardModal">
   <div class="admin-modal-box">
-    <div class="auth-modal-head">
+    <div class="auth-modal-head" style="display:flex;justify-content:space-between;align-items:center;">
       <div>
         <h3>👑 Admin & User Performance Panel</h3>
         <p style="font-size:0.84rem;color:var(--text-muted);margin-top:2px;">Track registered users, total tests attended, and detailed final scores.</p>
       </div>
-      <button class="btn btn-ghost btn-sm" id="closeAdminBtn">&times;</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-secondary btn-sm" id="adminBackToHomeBtn">⬅️ Back to Home</button>
+        <button class="btn btn-ghost btn-sm" id="closeAdminBtn">&times;</button>
+      </div>
     </div>
-</div>
 
     <div class="admin-stats-grid">
       <div class="admin-stat-card">
@@ -14597,7 +14660,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;">
       <h4 style="margin:0;font-size:1rem;">User Activity & Performance Summary</h4>
-      <input type="text" class="form-input" id="adminSearchInput" placeholder="🔍 Search User Name / Mobile..." style="max-width:260px;padding:6px 12px;font-size:0.82rem;" />
+      <input type="text" class="form-input" id="adminSearchInput" placeholder="🔍 Search Name / Email / Mobile..." style="max-width:280px;padding:6px 12px;font-size:0.82rem;" />
     </div>
 
     <div class="user-table-wrap">
@@ -14605,7 +14668,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <thead>
           <tr>
             <th>User Info</th>
-            <th>Mobile</th>
+            <th>Email / Mobile</th>
             <th>Tests Attended</th>
             <th>Best Score</th>
             <th>Avg Score</th>
@@ -14622,11 +14685,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <!-- ============ USER DETAILED TEST HISTORY MODAL ============ -->
 <div class="modal-overlay" id="userHistoryModal">
-  <div class="auth-modal-box" style="max-width:540px;">
-    <div class="auth-modal-head">
-      <div>
-        <h3 id="userHistTitle">User Test History</h3>
-        <p id="userHistSub" style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Detailed final scores and breakdown.</p>
+  <div class="auth-modal-box" style="max-width:580px;">
+    <div class="auth-modal-head" style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="btn btn-secondary btn-sm" id="userHistBackToAdminBtn" style="padding:4px 10px;font-size:0.8rem;white-space:nowrap;">
+          ⬅️ Back to Admin Panel
+        </button>
+        <div>
+          <h3 id="userHistTitle" style="margin:0;font-size:1.05rem;">User Test History</h3>
+          <p id="userHistSub" style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Detailed final scores and breakdown.</p>
+        </div>
       </div>
       <button class="btn btn-ghost btn-sm" id="closeUserHistBtn">&times;</button>
     </div>
@@ -14640,15 +14708,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <!-- ============ ADMIN PASSCODE VERIFICATION MODAL ============ -->
 <div class="modal-overlay" id="adminPasscodeModal">
-  <div class="auth-modal-box" style="max-width:380px;">
+  <div class="auth-modal-box" style="max-width:400px;width:90%;">
     <div class="auth-modal-head">
-      <h3>🔒 Admin Verification</h3>
+      <h3>🔐 Admin Verification</h3>
       <button class="btn btn-ghost btn-sm" id="closeAdminPasscodeBtn">&times;</button>
     </div>
-</div>
 
-    <p style="font-size:0.86rem;color:var(--text-muted);margin-bottom:16px;">
-      This section is restricted. Please enter the Admin Security Key to access user scores and analytics.
+    <p style="font-size:0.86rem;color:var(--text-muted);margin-top:8px;margin-bottom:16px;line-height:1.4;">
+      This section is restricted. Enter your Admin Security Key to continue.
     </p>
 
     <form id="adminPasscodeForm">
@@ -14656,7 +14723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <label>Admin Security Key / Master PIN</label>
         <input type="password" class="form-input" id="adminKeyInput" placeholder="Enter Admin Security Key" required autofocus />
       </div>
-      <button type="submit" class="btn btn-primary btn-block" style="margin-top:10px;background:linear-gradient(135deg, #7C3AED, #3F3BE0);">
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:12px;background:linear-gradient(135deg, #7C3AED, #3F3BE0);">
         🔓 Unlock Admin Panel
       </button>
     </form>

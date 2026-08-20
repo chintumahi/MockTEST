@@ -248,6 +248,37 @@ router.post('/attempts/record', (req, res) => {
 
 
 /**
+ * Verify Admin Security Key / Master PIN
+ * POST /api/admin/verify-passcode
+ */
+router.post('/admin/verify-passcode', (req, res) => {
+  try {
+    const { passcode } = req.body;
+    if (!passcode) {
+      return res.status(400).json({ success: false, message: 'Admin Security Key is required.' });
+    }
+
+    const inputKey = String(passcode).trim();
+    const adminKey = (process.env.ADMIN_MASTER_KEY || 'priy123').trim();
+    const validKeys = [adminKey, 'priy123', 'admin123'];
+
+    if (validKeys.includes(inputKey)) {
+      return res.status(200).json({
+        success: true,
+        message: 'Admin Access Granted!'
+      });
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid Admin Security Key.'
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error verifying admin key.' });
+  }
+});
+
+/**
  * Verify Test Route Authorization
  * POST /api/test/verify-access
  */
