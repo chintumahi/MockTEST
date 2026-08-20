@@ -12841,6 +12841,14 @@ function saveStats(stats){
 
 
 function showScreen(id){
+  if (id === 'screen-exam' || id === 'screen-instructions') {
+    const user = getCurrentUser();
+    if (!user) {
+      const catKey = state.categoryKey || 'stet_full';
+      requireAuthForTest(catKey);
+      return;
+    }
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'});
@@ -12985,16 +12993,28 @@ function checkDirectTestRoute() {
   if (targetKey) {
     const cat = CATEGORIES.find(c => c.key === targetKey);
     if (cat) {
-      setTimeout(() => {
-        openInstructions(targetKey);
-        showToast('🎯 Loaded Direct Test Link: ' + cat.name, 'info');
-      }, 100);
+      const user = getCurrentUser();
+      if (!user) {
+        pendingTestKey = targetKey;
+        try { sessionStorage.setItem('techmach_pending_test', targetKey); } catch(e){}
+        setTimeout(() => {
+          setLoginNotice('Please login to continue', 'Login or create an account to start this test and save your progress.');
+          openLoginModal();
+          showToast('🎯 Protected Test Route: Please login to start ' + cat.name, 'warn');
+        }, 150);
+      } else {
+        setTimeout(() => {
+          openInstructions(targetKey);
+          showToast('🎯 Loaded Direct Test Link: ' + cat.name, 'info');
+        }, 100);
+      }
     }
   }
 }
 
 
 function openInstructions(catKey){
+  if (!requireAuthForTest(catKey)) return;
   const cat = CATEGORIES.find(c => c.key === catKey);
   if(!cat) return;
   state.categoryKey = catKey;
@@ -13016,6 +13036,7 @@ function openInstructions(catKey){
    8. EXAM LOGIC
    ============================================================ */
 function beginExam(){
+  if (!requireAuthForTest(state.categoryKey)) return;
   const cat = CATEGORIES.find(c => c.key === state.categoryKey);
   state.questions = prepareQuestions(state.categoryKey);
   state.currentIndex = 0;
@@ -13345,7 +13366,8 @@ const AUTH_STORAGE_KEYS = {
 /* ============================================================
    REAL OTP & BACKEND API CLIENT INTEGRATION
    ============================================================ */
-const API_BASE = '/api';
+const API_BASE_URL = 'http://localhost:3000';
+const API_BASE = `${API_BASE_URL}/api`;
 
 async function apiSendOtp(mobileNumber, purpose) {
   try {
@@ -13475,6 +13497,70 @@ function isValidEmail(email) {
 }
 
 
+
+let pendingTestKey = null;
+
+function setLoginNotice(title, text) {
+  const banners = [document.getElementById('loginNoticeBanner'), document.getElementById('regNoticeBanner')];
+  banners.forEach(b => {
+    if (!b) return;
+    if (title || text) {
+      const t = b.querySelector('.notice-title');
+      const s = b.querySelector('.notice-sub');
+      if (t) t.textContent = title || 'Please login to continue';
+      if (s) s.textContent = text || 'Login or create an account to start this test and save your progress.';
+      b.style.display = 'block';
+    } else {
+      b.style.display = 'none';
+    }
+  });
+}
+
+function clearLoginNotice() {
+  setLoginNotice('', '');
+}
+
+function requireAuthForTest(catKey) {
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
+    if (catKey) {
+      pendingTestKey = catKey;
+      try { sessionStorage.setItem('techmach_pending_test', catKey); } catch(e){}
+    }
+    setLoginNotice(
+      'Please login to continue',
+      'Login or create an account to start this test and save your progress.'
+    );
+    openLoginModal();
+    showToast('Please login to continue and start this test.', 'warn');
+    return false;
+  }
+  return true;
+}
+
+function checkAndExecutePendingTest() {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  let key = pendingTestKey;
+  if (!key) {
+    try { key = sessionStorage.getItem('techmach_pending_test'); } catch(e){}
+  }
+
+  if (key) {
+    pendingTestKey = null;
+    try { sessionStorage.removeItem('techmach_pending_test'); } catch(e){}
+
+    const cat = CATEGORIES.find(c => c.key === key);
+    if (cat) {
+      showToast(`Welcome back, ${currentUser.name.split(' ')[0]}! Starting ${cat.name} now...`, 'success');
+      setTimeout(() => {
+        openInstructions(key);
+      }, 350);
+    }
+  }
+}
+
 function initAuthData(){
   try {
     let users = localStorage.getItem(AUTH_STORAGE_KEYS.users);
@@ -13522,6 +13608,9 @@ function setCurrentUser(user){
     else localStorage.removeItem(AUTH_STORAGE_KEYS.currentUser);
   } catch(e) {}
   updateNavAuth();
+  if (user) {
+    checkAndExecutePendingTest();
+  }
 }
 
 function getAllAttempts(){
@@ -13562,15 +13651,22 @@ function updateNavAuth(){
       <button class="btn btn-primary btn-sm" id="registerNavBtn">📝 Register</button>
       <button class="btn btn-secondary btn-sm admin-badge-btn" id="adminDashboardNavBtn">👑 Admin Panel</button>
     `;
-    document.getElementById('loginNavBtn').addEventListener('click', openLoginModal);
-    document.getElementById('registerNavBtn').addEventListener('click', openRegisterModal);
+    document.getElementById('loginNavBtn').addEventListener('click', () => { clearLoginNotice(); openLoginModal(); });
+    document.getElementById('registerNavBtn').addEventListener('click', () => { clearLoginNotice(); openRegisterModal(); });
   }
 
   document.getElementById('adminDashboardNavBtn').addEventListener('click', openAdminDashboardModal);
   if (document.getElementById('logoutNavBtn')) {
     document.getElementById('logoutNavBtn').addEventListener('click', () => {
       setCurrentUser(null);
-      showToast('Logged out successfully.', 'info');
+      clearInterval(state.timerInterval);
+      const activeScreen = document.querySelector('.screen.active');
+      if (activeScreen && (activeScreen.id === 'screen-exam' || activeScreen.id === 'screen-instructions')) {
+        showScreen('screen-home');
+        showToast('Logged out. Test session ended. Please login to take tests.', 'info');
+      } else {
+        showToast('Logged out successfully.', 'info');
+      }
     });
   }
 }
@@ -13579,14 +13675,20 @@ function updateNavAuth(){
 function openLoginModal(){
   document.getElementById('loginModal').classList.add('active');
 }
+function openLoginModalWithNotice(){
+  setLoginNotice('Please login to continue', 'Login or create an account to start this test and save your progress.');
+  openLoginModal();
+}
 function closeLoginModal(){
   document.getElementById('loginModal').classList.remove('active');
+  clearLoginNotice();
 }
 function openRegisterModal(){
   document.getElementById('registerModal').classList.add('active');
 }
 function closeRegisterModal(){
   document.getElementById('registerModal').classList.remove('active');
+  clearLoginNotice();
 }
 
 // Admin Dashboard Modal & Security Control
@@ -13713,6 +13815,46 @@ function closeUserHistoryModal(){
 
 
 document.addEventListener('DOMContentLoaded', () => {
+
+  // 1. Login Modal Tab Switching
+  const loginTabPasswordBtn = document.getElementById('loginTabPasswordBtn');
+  const loginTabOtpBtn = document.getElementById('loginTabOtpBtn');
+  const passwordLoginForm = document.getElementById('passwordLoginForm');
+  const otpLoginForm = document.getElementById('otpLoginForm');
+
+  if (loginTabPasswordBtn && loginTabOtpBtn && passwordLoginForm && otpLoginForm) {
+    loginTabPasswordBtn.addEventListener('click', () => {
+      loginTabPasswordBtn.classList.add('active');
+      loginTabOtpBtn.classList.remove('active');
+      passwordLoginForm.style.display = 'block';
+      otpLoginForm.style.display = 'none';
+    });
+
+    loginTabOtpBtn.addEventListener('click', () => {
+      loginTabOtpBtn.classList.add('active');
+      loginTabPasswordBtn.classList.remove('active');
+      passwordLoginForm.style.display = 'none';
+      otpLoginForm.style.display = 'block';
+    });
+  }
+
+  // 2. Navigation Link Wiring ("Create New Account" & "Login here")
+  const switchToRegisterLink = document.getElementById('switchToRegisterLink');
+  if (switchToRegisterLink) {
+    switchToRegisterLink.addEventListener('click', () => {
+      closeLoginModal();
+      openRegisterModal();
+    });
+  }
+
+  const switchToLoginLink = document.getElementById('switchToLoginLink');
+  if (switchToLoginLink) {
+    switchToLoginLink.addEventListener('click', () => {
+      closeRegisterModal();
+      openLoginModal();
+    });
+  }
+
     checkDirectTestRoute();
     window.addEventListener("hashchange", checkDirectTestRoute);
 
@@ -13796,37 +13938,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 1. Mobile OTP Login Send & Verify Flow
-  const sendOtpBtn = document.getElementById('sendOtpBtn');
-  const resendOtpBtn = document.getElementById('resendOtpBtn');
-  const otpLoginForm = document.getElementById('otpLoginForm');
-
   let activeLoginMobile = '';
 
   async function triggerLoginOtpSend() {
-    const email = document.getElementById('otpMobileInput').value.trim();
+    const sendOtpBtn = document.getElementById('sendOtpBtn');
+    const resendOtpBtn = document.getElementById('resendOtpBtn');
+    const emailInput = document.getElementById('otpMobileInput');
+    const email = emailInput ? emailInput.value.trim() : '';
+
     if (!isValidEmail(email)) {
       showToast('Please enter a valid Email Address (e.g. user@gmail.com).', 'warn');
       return;
     }
 
-    sendOtpBtn.disabled = true;
-    sendOtpBtn.textContent = 'Sending...';
+    try {
+      if (sendOtpBtn) {
+        sendOtpBtn.disabled = true;
+        sendOtpBtn.textContent = 'Sending...';
+      }
 
-    const res = await apiSendOtp(mobile, 'login');
-    sendOtpBtn.disabled = false;
-    sendOtpBtn.textContent = 'Send OTP';
+      const res = await apiSendOtp(email, 'login');
 
-    if (res.success) {
-      activeLoginMobile = mobile;
-      document.getElementById('otpVerificationSection').style.display = 'block';
-      const msgText = `OTP sent to ${res.maskedMobile}`;
-      document.getElementById('maskedMobileText').textContent = msgText;
+      if (res.success) {
+        activeLoginMobile = email;
+        const verSec = document.getElementById('otpVerificationSection');
+        if (verSec) verSec.style.display = 'block';
 
-      showToast(res.message, 'info');
-      startResendTimer(resendOtpBtn, document.getElementById('otpCountdownBadge'), res.cooldownSeconds || 45);
-    } else {
-      showToast(res.message || 'Failed to send OTP.', 'danger');
+        const msgText = res.message || `OTP sent to ${res.maskedEmail || email}`;
+        const maskedEl = document.getElementById('maskedMobileText');
+        if (maskedEl) maskedEl.textContent = msgText;
+
+        showToast(msgText, 'info');
+        startResendTimer(resendOtpBtn, document.getElementById('otpCountdownBadge'), res.cooldownSeconds || 45);
+      } else {
+        showToast(res.message || 'Unable to send OTP. Please try again.', 'danger');
+      }
+    } catch (err) {
+      showToast('Unable to send OTP. Please try again.', 'danger');
+    } finally {
+      if (sendOtpBtn) {
+        sendOtpBtn.disabled = false;
+        sendOtpBtn.textContent = 'Send OTP';
+      }
     }
   }
 
@@ -13868,28 +14021,45 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeResetToken = '';
 
   async function triggerForgotOtpSend() {
-    const email = document.getElementById('forgotMobileInput').value.trim();
+    const forgotSendBtn = document.getElementById('forgotSendOtpBtn');
+    const forgotResendBtn = document.getElementById('forgotResendOtpBtn');
+    const emailInput = document.getElementById('forgotMobileInput');
+    const email = emailInput ? emailInput.value.trim() : '';
+
     if (!isValidEmail(email)) {
       showToast('Please enter a valid Email Address (e.g. user@gmail.com).', 'warn');
       return;
     }
 
-    forgotSendBtn.disabled = true;
-    forgotSendBtn.textContent = 'Sending...';
+    try {
+      if (forgotSendBtn) {
+        forgotSendBtn.disabled = true;
+        forgotSendBtn.textContent = 'Sending...';
+      }
 
-    const res = await apiSendOtp(mobile, 'forgot_password');
-    forgotSendBtn.disabled = false;
-    forgotSendBtn.textContent = 'Send OTP';
+      const res = await apiSendOtp(email, 'forgot_password');
 
-    if (res.success) {
-      activeForgotMobile = mobile;
-      document.getElementById('forgotOtpSection').style.display = 'block';
-      document.getElementById('forgotMaskedText').textContent = res.message;
-      showToast(res.message, 'info');
-      const forgotResendBtn = document.getElementById('forgotResendOtpBtn');
-      startResendTimer(forgotResendBtn, document.getElementById('forgotTimerBadge'), res.cooldownSeconds || 45);
-    } else {
-      showToast(res.message || 'Failed to send OTP.', 'danger');
+      if (res.success) {
+        activeForgotMobile = email;
+        const verSec = document.getElementById('forgotOtpSection');
+        if (verSec) verSec.style.display = 'block';
+
+        const msgText = res.message || `OTP sent to ${res.maskedEmail || email}`;
+        const maskedEl = document.getElementById('forgotMaskedText');
+        if (maskedEl) maskedEl.textContent = msgText;
+
+        showToast(msgText, 'info');
+        startResendTimer(forgotResendBtn, document.getElementById('forgotTimerBadge'), res.cooldownSeconds || 45);
+      } else {
+        showToast(res.message || 'Unable to send OTP. Please try again.', 'danger');
+      }
+    } catch (err) {
+      showToast('Unable to send OTP. Please try again.', 'danger');
+    } finally {
+      if (forgotSendBtn) {
+        forgotSendBtn.disabled = false;
+        forgotSendBtn.textContent = 'Send OTP';
+      }
     }
   }
 
@@ -13965,30 +14135,45 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeRegMobile = '';
 
   async function triggerRegOtpSend() {
-    const email = document.getElementById('regMobile').value.trim();
+    const regSendOtpBtn = document.getElementById('regSendOtpBtn');
+    const regResendBtn = document.getElementById('regResendOtpBtn');
+    const emailInput = document.getElementById('regMobile');
+    const email = emailInput ? emailInput.value.trim() : '';
+
     if (!isValidEmail(email)) {
       showToast('Please enter a valid Email Address (e.g. user@gmail.com).', 'warn');
       return;
     }
 
-    regSendOtpBtn.disabled = true;
-    regSendOtpBtn.textContent = 'Sending...';
+    try {
+      if (regSendOtpBtn) {
+        regSendOtpBtn.disabled = true;
+        regSendOtpBtn.textContent = 'Sending...';
+      }
 
-    const res = await apiSendOtp(mobile, 'register');
-    regSendOtpBtn.disabled = false;
-    regSendOtpBtn.textContent = 'Send OTP';
+      const res = await apiSendOtp(email, 'register');
 
-    if (res.success) {
-      activeRegMobile = mobile;
-      document.getElementById('regOtpSection').style.display = 'block';
-      const msgText = `OTP sent to ${res.maskedMobile}`;
-      document.getElementById('regMaskedText').textContent = msgText;
+      if (res.success) {
+        activeRegMobile = email;
+        const verSec = document.getElementById('regOtpSection');
+        if (verSec) verSec.style.display = 'block';
 
-      showToast(res.message, 'info');
-      const regResendBtn = document.getElementById('regResendOtpBtn');
-      startResendTimer(regResendBtn, document.getElementById('regTimerBadge'), res.cooldownSeconds || 45);
-    } else {
-      showToast(res.message || 'Failed to send OTP.', 'danger');
+        const msgText = res.message || `OTP sent to ${res.maskedEmail || email}`;
+        const maskedEl = document.getElementById('regMaskedText');
+        if (maskedEl) maskedEl.textContent = msgText;
+
+        showToast(msgText, 'info');
+        startResendTimer(regResendBtn, document.getElementById('regTimerBadge'), res.cooldownSeconds || 45);
+      } else {
+        showToast(res.message || 'Unable to send OTP. Please try again.', 'danger');
+      }
+    } catch (err) {
+      showToast('Unable to send OTP. Please try again.', 'danger');
+    } finally {
+      if (regSendOtpBtn) {
+        regSendOtpBtn.disabled = false;
+        regSendOtpBtn.textContent = 'Send OTP';
+      }
     }
   }
 
@@ -14195,6 +14380,19 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="btn btn-ghost btn-sm" id="closeLoginBtn">&times;</button>
     </div>
 
+    <!-- Login Notice Banner for Protected Test Access -->
+    <div id="loginNoticeBanner" class="auth-notice-banner" style="display:none;background:var(--primary-light);border:1.5px solid var(--primary);border-radius:12px;padding:12px 16px;margin:14px 0 6px 0;text-align:left;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" width="22" height="22" style="flex-shrink:0;margin-top:2px;">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div>
+          <strong class="notice-title" style="color:var(--primary);font-size:0.98rem;display:block;font-weight:700;">Please login to continue</strong>
+          <span class="notice-sub" style="color:var(--text-muted);font-size:0.84rem;line-height:1.4;display:block;margin-top:2px;">Login or create an account to start this test and save your progress.</span>
+        </div>
+      </div>
+    </div>
+
     <div class="auth-tabs">
       <button class="auth-tab-btn active" id="loginTabPasswordBtn">Password Login</button>
       <button class="auth-tab-btn" id="loginTabOtpBtn">Email OTP Login</button>
@@ -14219,20 +14417,20 @@ document.addEventListener('DOMContentLoaded', () => {
     <!-- Form B: Mobile OTP Login -->
     <form id="otpLoginForm" style="display:none;">
       <div class="form-group">
-        <label>Registered Mobile Number</label>
+        <label>Registered Email Address</label>
         <div style="display:flex;gap:8px;">
-          <input type="tel" class="form-input" id="otpMobileInput" placeholder="10-digit Mobile Number" maxLength="10" required />
+          <input type="email" class="form-input" id="otpMobileInput" placeholder="Enter registered Email Address" required />
           <button type="button" class="btn btn-secondary btn-sm" id="sendOtpBtn" style="white-space:nowrap;">Send OTP</button>
         </div>
       </div>
 
       <div id="otpVerificationSection" style="display:none;">
         <div class="otp-masked-info">
-          <span id="maskedMobileText">OTP sent to +91 ***** *****</span>
+          <span id="maskedMobileText">OTP sent to e***@gmail.com</span>
           <span id="otpCountdownBadge" style="font-size:0.78rem;">45s</span>
         </div>
         <div class="form-group">
-          <label>Enter 6-Digit OTP Code received on Mobile</label>
+          <label>Enter 6-Digit OTP Code received on Email</label>
           <input type="text" class="form-input otp-input-box" id="otpCodeInput" placeholder="••••••" maxLength="6" required />
         </div>
         <div style="margin-top:6px;">
@@ -14307,6 +14505,19 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="auth-modal-head">
       <h3>📝 Create Account</h3>
       <button class="btn btn-ghost btn-sm" id="closeRegisterBtn">&times;</button>
+    </div>
+
+    <!-- Register Notice Banner for Protected Test Access -->
+    <div id="regNoticeBanner" class="auth-notice-banner" style="display:none;background:var(--primary-light);border:1.5px solid var(--primary);border-radius:12px;padding:12px 16px;margin:14px 0 6px 0;text-align:left;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" width="22" height="22" style="flex-shrink:0;margin-top:2px;">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div>
+          <strong class="notice-title" style="color:var(--primary);font-size:0.98rem;display:block;font-weight:700;">Please login to continue</strong>
+          <span class="notice-sub" style="color:var(--text-muted);font-size:0.84rem;line-height:1.4;display:block;margin-top:2px;">Login or create an account to start this test and save your progress.</span>
+        </div>
+      </div>
     </div>
 
     <form id="registerForm">
